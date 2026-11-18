@@ -1,0 +1,341 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny all reads and writes by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core security helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validators
+    function isValidUserAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 120
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrivateProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 254
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidThread(data, userId, threadId) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'title',
+          'turnCount',
+          'latestLanguageCode',
+          'latestIntentCategory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'title',
+          'turnCount',
+          'latestLanguageCode',
+          'latestIntentCategory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.id == threadId
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 200
+        && data.turnCount is int
+        && data.turnCount >= 1
+        && data.turnCount <= 50
+        && data.latestLanguageCode is string
+        && data.latestLanguageCode.size() >= 1
+        && data.latestLanguageCode.size() <= 24
+        && data.latestIntentCategory is string
+        && data.latestIntentCategory.size() >= 1
+        && data.latestIntentCategory.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProjectContextMap(ctx) {
+      return ctx is map
+        && ctx.keys().hasAll(['techStack', 'targetFiles', 'constraints'])
+        && ctx.keys().hasOnly(['techStack', 'targetFiles', 'constraints'])
+        && ctx.techStack is string
+        && ctx.techStack.size() <= 1000
+        && ctx.targetFiles is string
+        && ctx.targetFiles.size() <= 1000
+        && ctx.constraints is string
+        && ctx.constraints.size() <= 2000;
+    }
+
+    function isValidCompilationResultMap(res) {
+      return res is map
+        && res.keys().hasAll([
+          'detectedLanguages',
+          'primaryLanguageCode',
+          'primaryLanguageName',
+          'intentCategory',
+          'inferredIntent',
+          'secondaryIntents',
+          'keywordNodes',
+          'keywordRelations',
+          'contextDelta',
+          'contextBridges',
+          'reasoningSteps',
+          'ambiguities',
+          'compiledPrompt',
+          'backTranslation',
+          'checklist'
+        ])
+        && res.keys().hasOnly([
+          'detectedLanguages',
+          'primaryLanguageCode',
+          'primaryLanguageName',
+          'intentCategory',
+          'inferredIntent',
+          'secondaryIntents',
+          'keywordNodes',
+          'keywordRelations',
+          'contextDelta',
+          'contextBridges',
+          'reasoningSteps',
+          'ambiguities',
+          'compiledPrompt',
+          'backTranslation',
+          'checklist'
+        ])
+        && res.detectedLanguages is list
+        && res.detectedLanguages.size() >= 1
+        && res.detectedLanguages.size() <= 12
+        && res.detectedLanguages[0] is map
+        && res.primaryLanguageCode is string
+        && res.primaryLanguageCode.size() <= 24
+        && res.primaryLanguageName is string
+        && res.primaryLanguageName.size() <= 64
+        && res.intentCategory is string
+        && res.intentCategory.size() <= 64
+        && res.inferredIntent is string
+        && res.inferredIntent.size() <= 2000
+        && res.secondaryIntents is list
+        && res.secondaryIntents.size() <= 15
+        && (res.secondaryIntents.size() == 0 || res.secondaryIntents[0] is string)
+        && res.keywordNodes is list
+        && res.keywordNodes.size() <= 30
+        && (res.keywordNodes.size() == 0 || res.keywordNodes[0] is map)
+        && res.keywordRelations is list
+        && res.keywordRelations.size() <= 50
+        && (res.keywordRelations.size() == 0 || res.keywordRelations[0] is map)
+        && res.contextDelta is map
+        && res.contextBridges is list
+        && res.contextBridges.size() <= 25
+        && (res.contextBridges.size() == 0 || res.contextBridges[0] is map)
+        && res.reasoningSteps is list
+        && res.reasoningSteps.size() <= 20
+        && (res.reasoningSteps.size() == 0 || res.reasoningSteps[0] is map)
+        && res.ambiguities is list
+        && res.ambiguities.size() <= 20
+        && (res.ambiguities.size() == 0 || res.ambiguities[0] is map)
+        && res.compiledPrompt is string
+        && res.compiledPrompt.size() >= 1
+        && res.compiledPrompt.size() <= 40000
+        && res.backTranslation is map
+        && res.checklist is list
+        && res.checklist.size() <= 40
+        && (res.checklist.size() == 0 || res.checklist[0] is map);
+    }
+
+    function isValidTurn(data, userId, threadId, turnId) {
+      return data.keys().hasAll([
+          'id',
+          'ownerId',
+          'threadId',
+          'turnNumber',
+          'durationMs',
+          'rawPrompt',
+          'targetAgent',
+          'outputFormat',
+          'reasoningDepth',
+          'projectContext',
+          'result',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'ownerId',
+          'threadId',
+          'turnNumber',
+          'durationMs',
+          'rawPrompt',
+          'targetAgent',
+          'outputFormat',
+          'reasoningDepth',
+          'projectContext',
+          'result',
+          'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.id == turnId
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && isValidId(data.threadId)
+        && data.threadId == threadId
+        && data.turnNumber is int
+        && data.turnNumber >= 1
+        && data.turnNumber <= 50
+        && data.durationMs is int
+        && data.durationMs >= 0
+        && data.durationMs <= 600000
+        && data.rawPrompt is string
+        && data.rawPrompt.size() >= 1
+        && data.rawPrompt.size() <= 16000
+        && data.targetAgent in ['universal', 'claude-code', 'cursor-composer', 'codex-copilot']
+        && data.outputFormat in ['structured-markdown', 'xml-agent', 'implementation-plan', 'issue-ticket', 'compact-inline']
+        && data.reasoningDepth in ['balanced', 'deep']
+        && isValidProjectContextMap(data.projectContext)
+        && isValidCompilationResultMap(data.result)
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerifiedOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+
+      match /private/profile {
+        allow get: if isVerifiedOwner(userId) && isValidId(userId);
+        allow list: if false;
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidPrivateProfile(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidPrivateProfile(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /threads/{threadId} {
+        allow get: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(threadId)
+          && existing().ownerId == request.auth.uid;
+        allow list: if isVerifiedOwner(userId)
+          && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(threadId)
+          && isValidThread(incoming(), userId, threadId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(threadId)
+          && isValidThread(incoming(), userId, threadId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'title',
+            'turnCount',
+            'latestLanguageCode',
+            'latestIntentCategory',
+            'updatedAt'
+          ]);
+        allow delete: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(threadId)
+          && existing().ownerId == request.auth.uid;
+
+        match /turns/{turnId} {
+          allow get: if isVerifiedOwner(userId)
+            && isValidId(userId)
+            && isValidId(threadId)
+            && isValidId(turnId)
+            && existing().ownerId == request.auth.uid
+            && get(/databases/$(database)/documents/users/$(userId)/threads/$(threadId)).data.ownerId == request.auth.uid;
+          allow list: if isVerifiedOwner(userId)
+            && resource.data.ownerId == request.auth.uid
+            && resource.data.threadId == threadId;
+          allow create: if isVerifiedOwner(userId)
+            && isValidId(userId)
+            && isValidId(threadId)
+            && isValidId(turnId)
+            && isValidTurn(incoming(), userId, threadId, turnId)
+            && incoming().createdAt == request.time
+            && getAfter(/databases/$(database)/documents/users/$(userId)/threads/$(threadId)).data.ownerId == request.auth.uid;
+          allow update: if false;
+          allow delete: if isVerifiedOwner(userId)
+            && isValidId(userId)
+            && isValidId(threadId)
+            && isValidId(turnId)
+            && existing().ownerId == request.auth.uid;
+        }
+      }
+    }
+  }
+}

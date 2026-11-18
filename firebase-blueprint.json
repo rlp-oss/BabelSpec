@@ -1,0 +1,214 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated user display metadata isolated to the owning user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Strictly isolated user PII document containing verified email.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "ContextThread": {
+      "title": "ContextThread",
+      "description": "Confidential multi-turn prompt translation thread owned exclusively by a single user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "turnCount": {
+          "type": "integer"
+        },
+        "latestLanguageCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "latestIntentCategory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "title",
+        "turnCount",
+        "latestLanguageCode",
+        "latestIntentCategory",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ContextTurn": {
+      "title": "ContextTurn",
+      "description": "Single prompt compilation turn inside a confidential user thread.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "turnNumber": {
+          "type": "integer"
+        },
+        "durationMs": {
+          "type": "integer"
+        },
+        "rawPrompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16000
+        },
+        "targetAgent": {
+          "type": "string",
+          "enum": ["universal", "claude-code", "cursor-composer", "codex-copilot"]
+        },
+        "outputFormat": {
+          "type": "string",
+          "enum": [
+            "structured-markdown",
+            "xml-agent",
+            "implementation-plan",
+            "issue-ticket",
+            "compact-inline"
+          ]
+        },
+        "reasoningDepth": {
+          "type": "string",
+          "enum": ["balanced", "deep"]
+        },
+        "projectContext": {
+          "type": "object"
+        },
+        "result": {
+          "type": "object"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "threadId",
+        "turnNumber",
+        "durationMs",
+        "rawPrompt",
+        "targetAgent",
+        "outputFormat",
+        "reasoningDepth",
+        "projectContext",
+        "result",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Private user account metadata accessible only to the verified owning user."
+    },
+    "/users/{userId}/private/profile": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII document storing the user's verified email address."
+    },
+    "/users/{userId}/threads/{threadId}": {
+      "schema": { "$ref": "#/entities/ContextThread" },
+      "description": "Confidential prompt compilation threads strictly scoped to the owning user."
+    },
+    "/users/{userId}/threads/{threadId}/turns/{turnId}": {
+      "schema": { "$ref": "#/entities/ContextTurn" },
+      "description": "Individual confidential turns belonging to a user's context thread."
+    }
+  }
+}

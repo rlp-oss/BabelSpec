@@ -1,0 +1,6 @@
+{
+  "name": "BabelSpec",
+  "description": "Multilingual reasoning prompt translator and specification compiler for coding agents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
